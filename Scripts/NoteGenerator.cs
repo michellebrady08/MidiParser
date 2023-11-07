@@ -5,37 +5,40 @@ using static NoteGenerator;
 
 public class NoteGenerator : MonoBehaviour
 {
-    public float distanciaCamara = 5.0f; // Distancia de la c醡ara para eliminarla.
+    public float distanciaCamara = 5.0f; // Distancia de la c谩mara para eliminarla.
 
-    public SpriteRenderer sprite;
-    public bool onSharp = true;
-    public GameObject sharpPrefab;
+    public SpriteRenderer sprite;       // staffpara referencia al momento de escalar las notas
+    public Color nuevoColor;
+    public bool onSharp = true;         // Marca si quieres mostrar las notas en bemoles o sostenidos
+    /*  PREFABS DE NOTAS */
+    public GameObject sharpPrefab;      
     public GameObject flatPrefab;
+    public GameObject line;
     public List<GameObject> notePrefabs;
 
-    private Transform camaraTransform;
+    private Transform camaraTransform;  // Para mover el Satff
+   
+    public float altura = 0.005f;       // Separacion entre notas
+    public float velocidad = 1.0f;      // Velocidad de desplazamiento
 
-    
-    public float altura = 1.0f;
-    public float velocidad = 1.0f; // Velocidad de desplazamiento
-
-    private List<GameObject> noteList = new List<GameObject>();
-
+    private List<GameObject> noteList = new List<GameObject>(); // Lista para mantener control de los gameObjects
+    /* DATOS DE CADA NOTA */
     public class Note
     {
         public int NoteNumber;
         public long Time;
         public long Duration;
+        public bool Hand;
     }
 
     void Start()
     {
-        camaraTransform = Camera.main.transform; // Referencia a la c醡ara principal.
+        camaraTransform = Camera.main.transform; // Referencia a la c谩mara principal.
     }
 
     void Update()
     {
-        // Calcula la posici髇 vertical de la c醡ara con un ajuste de distancia.
+        // Calcula la posici贸n vertical de la c谩mara con un ajuste de distancia.
         float posicionCamaraX = camaraTransform.position.x - distanciaCamara;
 
         for (int i = noteList.Count - 1; i >= 0; i--)
@@ -47,21 +50,22 @@ public class NoteGenerator : MonoBehaviour
                 {
                     Debug.Log($"note: {notex.GetComponent<NoteData>().noteNumber}, duration: {notex.GetComponent<NoteData>().noteDuration}");
                 }
-                Destroy(notex); // Destruye el objeto cuando cruza la coordenada X de destrucci髇.
+                Destroy(notex); // Destruye el objeto cuando cruza la coordenada X de destrucci贸n.
                 
-                noteList.RemoveAt(i); // Elimina el elemento de la lista en la posici髇 'i'.
+                noteList.RemoveAt(i); // Elimina el elemento de la lista en la posici贸n 'i'.
             }
         }
     }
 
 
-    public void generateNote(int n, long t, long d)
+    public void generateNote(int n, long t, long d, bool h)
     {
         Note note = new Note
         {
             NoteNumber = n,
             Time = t, // Usamos el tiempo acumulado
             Duration = d,
+            Hand = h,
         };
         createNote(note);    
     }
@@ -77,37 +81,93 @@ public class NoteGenerator : MonoBehaviour
         int noteYpos = getNotePos(17, n.NoteNumber);
 
         // Manage container size
-        float height = sprite.bounds.size.y-0.5f; // conteiner Height
+        float height = sprite.bounds.size.y-(fNote.GetComponent<SpriteRenderer>().bounds.size.y/5f); // conteiner Height
         Bounds spriteBounds = sprite.bounds; // container bottom limit
-        float bottomLimit = spriteBounds.min.y + spriteScale.x* 1.1f;
+        float bottomLimit = spriteBounds.min.y;
 
         float noteHeight = height / 58; // divide the height between the 58 notes
         //Debug.Log($"Note {n.NoteNumber} pos {noteYpos}");
-        
-        // Determina la posici髇 en funci髇 del n鷐ero de nota
-        Vector3 notePosition = new Vector3(n.Time* altura, (noteHeight * noteYpos)+bottomLimit, -7.0f);
-        // Crea una instancia de la nota en la posici髇 calculada
+        // Determina la posici贸n en funci贸n del n煤mero de nota
+        Vector3 notePosition = new Vector3(n.Time * altura, (noteHeight * noteYpos)+ spriteBounds.min.y, -7.0f);
+        // Crea una instancia de la nota en la posici贸n calculada
         GameObject newNote = Instantiate(fNote, notePosition, Quaternion.identity, transform);
-        // Save note information on note
-        newNote.GetComponent<NoteData>().noteNumber = n.NoteNumber;
-        newNote.GetComponent<NoteData>().noteDuration = n.Duration;
-        newNote.GetComponent<NoteData>().noteTime = n.Time;
-        noteList.Add(newNote);
 
-        if (isSharp )
+        printLines(n, newNote, noteYpos, bottomLimit, noteHeight);
+        flipNote(n, newNote);
+
+        if (isSharp)
         {
             GameObject symbol;
             if (onSharp)
             {
                 symbol = sharpPrefab;
+                n.NoteNumber++;
             }
             else
             {
                 symbol = flatPrefab;
+                n.NoteNumber--;
             }
-            notePosition = new Vector3(notePosition.x - 0.7f, notePosition.y-0.7f, -7.0f);
+
+            notePosition = new Vector3(notePosition.x - 0.7f, notePosition.y, -7.0f);
             GameObject newSharp = Instantiate(symbol, notePosition, Quaternion.identity, transform);
             noteList.Add(newSharp);
+        }
+        // Save note information on note
+        newNote.GetComponent<NoteData>().noteNumber = n.NoteNumber;
+        newNote.GetComponent<NoteData>().noteDuration = n.Duration;
+        newNote.GetComponent<NoteData>().noteTime = n.Time;
+        noteList.Add(newNote);
+    }
+
+    private void flipNote(Note n, GameObject note)
+    {
+        float size = note.GetComponent<SpriteRenderer>().bounds.size.y;
+        Vector3 newPos = new Vector3(note.transform.position.x, note.transform.position.y + (size / 3.5f), -7.0f);
+        if (n.NoteNumber > 70 || ((n.NoteNumber > 49 && n.NoteNumber<58) || (n.NoteNumber > 58 && n.Hand)))
+        {
+            note.transform.position = newPos;
+            note.GetComponent<SpriteRenderer>().flipX = true;
+            note.GetComponent<SpriteRenderer>().flipY = true;
+        }
+    }
+
+    private void printLines(Note n, GameObject note, int pos, float bottomLimit, float noteHeight)
+    {
+        if (n.NoteNumber > 80) // si esta por encima del staff
+        {
+            if (pos % 2 != 0)
+            {
+                pos--;
+            }
+            //numero de lineas por debajo de la nota
+            int lineNumber = (pos - 38) / 2;
+            for (int i = lineNumber-1; i >= 0; i--)
+            {
+                Vector3 linePosition = new Vector3(note.transform.position.x, noteHeight * (pos - (i * 2)) + bottomLimit, -7.0f);
+                GameObject newLine = Instantiate(line, linePosition, Quaternion.identity, transform);
+                noteList.Add(newLine);
+            }
+        }
+        else if (n.NoteNumber < 41) // si esta por debajo
+        {
+            if (pos % 2 != 0)
+            {
+                pos++;
+            }
+            int lineNumber = -((pos - 16) / 2);
+            for (int i = 0; i <= lineNumber; i++)
+            {
+                Vector3 linePosition = new Vector3(note.transform.position.x, noteHeight * (pos + (i * 2)) + bottomLimit, -7.0f);
+                GameObject newLine = Instantiate(line, linePosition, Quaternion.identity, transform);
+                noteList.Add(newLine);
+            }
+        }
+        else if (n.NoteNumber == 60) // si es C
+        {
+            Vector3 linePosition = new Vector3(note.transform.position.x, note.transform.position.y, -7.0f);
+            GameObject newLine = Instantiate(line, linePosition, Quaternion.identity, transform);
+            noteList.Add(newLine);
         }
     }
 
@@ -185,3 +245,4 @@ public class NoteGenerator : MonoBehaviour
         }
     }
 }
+
